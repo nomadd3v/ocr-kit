@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plain Compose-only theme; Compose renders the actual UI, this just
+         covers the window background before/around the Compose content.
+         android:Theme.Material has no DayNight variant — that's an
+         AppCompat/Material-Components concept, and this app pulls in
+         neither — so the plain framework theme is the correct parent here. -->
+    <style name="Theme.OcrKit" parent="android:Theme.Material.NoActionBar" />
+</resources>

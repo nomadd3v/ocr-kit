@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- specialUse, not dataSync: Android 15 caps a dataSync FGS at 6h per 24h,
+         after which startForeground() throws and the worker is dead until the
+         window rolls over. This is an always-on LAN server, which is exactly
+         what specialUse exists for. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:label="@string/app_name"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.OcrKit">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.OcrKit">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- exported so it can also be started headlessly, e.g.
+             `adb shell am start-foreground-service`, in addition to the
+             in-app ON/OFF toggle in MainActivity. -->
+        <service
+            android:name=".OcrService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Always-on local OCR server for menu extraction" />
+        </service>
+
+    </application>
+</manifest>
