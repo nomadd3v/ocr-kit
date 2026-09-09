@@ -16,11 +16,25 @@ party. If you have a spare Android phone lying around, it can do the same
 job for free, on your own network, with the image data never leaving the
 device.
 
+## Requirements
+
+- An Android phone running **Android 10 (API 29) or newer** — this is
+  intentionally low, so an old phone in a drawer almost always qualifies.
+- That phone and whatever will call the OCR server (your computer, your
+  agent, an MCP client) need to be reachable over the same network — the
+  phone does not need internet access at all once the app is installed.
+- To build it yourself: Android Studio, or just a JDK + the Android SDK
+  command-line tools if you're building from the CLI (see below).
+
 ## Install
 
 1. Clone this repo and open it in Android Studio (or build from the CLI
-   with `./gradlew :app:assembleDebug`).
-2. Install the debug APK on the phone you want to use as the OCR server.
+   with `./gradlew :app:assembleDebug` — the resulting APK lands in
+   `app/build/outputs/apk/debug/`).
+2. Install the debug APK on the phone you want to use as the OCR server
+   (`adb install app/build/outputs/apk/debug/app-debug.apk`, or copy it to
+   the phone and open it there — you'll need "install from unknown
+   sources" allowed for the latter).
 3. Open the app once. On first launch it generates a random pairing key
    and stores it on the device — you never have to type it in yourself.
 
@@ -85,6 +99,31 @@ Every route — including a plain `/health` check — requires the same
 `X-Api-Key` header. There is no way to reach the phone without the key,
 not even to check whether the server is running.
 
+### Quick test
+
+Once the app is running and you have its pairing JSON, confirm it's alive
+with a single request (swap in your own host and key):
+
+```bash
+curl http://<host>:5210/health -H "X-Api-Key: <key>"
+# {"ok":true,"engine":"mlkit"}
+```
+
+Then try it on a real image:
+
+```bash
+curl http://<host>:5210/ocr \
+  -H "X-Api-Key: <key>" -H "Content-Type: application/json" \
+  -d "{\"images\":[\"$(base64 -w0 some-photo.jpg)\"]}"
+```
+
+## Status
+
+Fresh — the auth path has been adversarially reviewed and the app builds
+clean (`./gradlew :app:assembleDebug`), but it has not yet been flashed
+onto physical hardware and put through a real end-to-end pairing flow.
+Treat it as a working v1, not a battle-tested one. Issues and PRs welcome.
+
 ## What this does NOT do
 
 - **No telemetry.** Nothing about your usage — what you scanned, how
@@ -101,3 +140,7 @@ not even to check whether the server is running.
   the phone also has mobile data, a hotspot, or a VPN connection active,
   the (still key-gated) port is reachable there too. The pairing key still
   guards it, but don't assume Wi-Fi is the only network this is exposed on.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
