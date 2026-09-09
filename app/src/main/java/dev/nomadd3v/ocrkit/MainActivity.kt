@@ -2,25 +2,25 @@ package dev.nomadd3v.ocrkit
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -29,38 +29,37 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
 import org.json.JSONObject
 
 /**
- * Launcher / pairing screen.
- *
- * Displays the API key + LAN IP as a scannable QR (and selectable plain
- * text, for copy-paste pairing flows), plus an ON/OFF toggle for the OCR
- * foreground service. No camera permission is needed here — this screen
- * only ever displays a QR code, it never scans one.
+ * Launcher screen: an editable port, a toggle to start the OCR server, and
+ * — once it's running — the connection info (host/port/key) to hand to
+ * whatever agent or script is going to send it images.
  */
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // This screen renders the pairing secret as plaintext and a QR code —
-        // block screenshots/screen-recording and the recent-apps thumbnail so
-        // the key's exposure is limited to someone looking at the device.
+        // This screen renders the server key as plaintext — block
+        // screenshots/screen-recording and the recent-apps thumbnail so the
+        // key's exposure is limited to someone looking at the device.
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
 
         val apiKey = AuthGate.getOrCreateKey(this)
-        val lanIp = getLanIpAddress(this)
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    PairingScreen(apiKey = apiKey, lanIp = lanIp)
+                    ServerScreen(
+                        apiKey = apiKey,
+                        initialPort = PortConfig.getPort(applicationContext),
+                        onPortChange = { PortConfig.setPort(applicationContext, it) },
+                        lanIpProvider = { getLanIpAddress(this) }
+                    )
                 }
             }
         }
@@ -88,28 +87,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun buildPairingJson(host: String, key: String): String {
+private fun buildServerInfoJson(host: String, port: Int, key: String): String {
     return JSONObject()
         .put("host", host)
-        .put("port", 5210)
+        .put("port", port)
         .put("key", key)
         .toString()
-}
-
-private fun renderQrBitmap(content: String, sizePx: Int = 512): Bitmap? {
-    return try {
-        val writer = QRCodeWriter()
-        val matrix = writer.encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.RGB_565)
-        for (x in 0 until sizePx) {
-            for (y in 0 until sizePx) {
-                bitmap.setPixel(x, y, if (matrix.get(x, y)) 0xFF000000.toInt() else 0xFFFFFFFF.toInt())
-            }
-        }
-        bitmap
-    } catch (_: Throwable) {
-        null
-    }
 }
 
 private fun setOcrServiceRunning(context: Context, running: Boolean) {
@@ -126,9 +109,17 @@ private fun setOcrServiceRunning(context: Context, running: Boolean) {
 }
 
 @Composable
-private fun PairingScreen(apiKey: String, lanIp: String?) {
+private fun ServerScreen(
+    apiKey: String,
+    initialPort: Int,
+    onPortChange: (Int) -> Boolean,
+    lanIpProvider: () -> String?
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var serviceRunning by remember { mutableStateOf(false) }
+    var portText by remember { mutableStateOf(initialPort.toString()) }
+    var committedPort by remember { mutableStateOf(initialPort) }
+    var portError by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -137,55 +128,49 @@ private fun PairingScreen(apiKey: String, lanIp: String?) {
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "ocr-kit pairing", style = MaterialTheme.typography.headlineSmall)
+        Text(text = "ocr-kit", style = MaterialTheme.typography.headlineSmall)
 
-        Row(modifier = Modifier.padding(top = 8.dp)) {
-            Text(text = "Server: ")
-            Text(text = if (serviceRunning) "ON" else "OFF")
-        }
-
-        if (lanIp == null) {
-            Text(
-                modifier = Modifier.padding(vertical = 16.dp),
-                text = "Could not read a Wi-Fi IP address. Connect to Wi-Fi, then reopen this app " +
-                    "to generate a QR code. You can still read the API key below."
+        Row(
+            modifier = Modifier.padding(top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Port")
+            OutlinedTextField(
+                value = portText,
+                onValueChange = { text ->
+                    portText = text
+                    val parsed = text.toIntOrNull()
+                    portError = parsed == null || parsed !in PortConfig.VALID_RANGE
+                    if (parsed != null && onPortChange(parsed)) {
+                        committedPort = parsed
+                    }
+                },
+                enabled = !serviceRunning,
+                isError = portError,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier
+                    .padding(start = 12.dp)
+                    .width(120.dp)
             )
-        } else {
-            val pairingJson = remember(apiKey, lanIp) { buildPairingJson(lanIp, apiKey) }
-            val qrBitmap = remember(pairingJson) { renderQrBitmap(pairingJson) }
-
-            if (qrBitmap != null) {
-                Image(
-                    bitmap = qrBitmap.asImageBitmap(),
-                    contentDescription = "Pairing QR code",
-                    modifier = Modifier
-                        .padding(vertical = 16.dp)
-                        .size(256.dp)
-                )
-            } else {
-                Text(
-                    modifier = Modifier.padding(vertical = 16.dp),
-                    text = "Failed to render QR code. Use the text below instead."
-                )
-            }
-
+        }
+        if (portError) {
             Text(
-                modifier = Modifier.padding(bottom = 8.dp),
-                text = "Scan with an MCP client, or copy this text:",
+                text = "Enter a port between ${PortConfig.VALID_RANGE.first} and " +
+                    "${PortConfig.VALID_RANGE.last}.",
                 style = MaterialTheme.typography.labelMedium
             )
-            SelectionContainer {
-                Text(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    text = pairingJson
-                )
-            }
+        } else if (serviceRunning) {
+            Text(
+                text = "Turn the server off to change the port.",
+                style = MaterialTheme.typography.labelMedium
+            )
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -197,6 +182,39 @@ private fun PairingScreen(apiKey: String, lanIp: String?) {
                     setOcrServiceRunning(context, checked)
                 },
                 modifier = Modifier.padding(start = 12.dp)
+            )
+        }
+
+        if (serviceRunning) {
+            val lanIp = remember(serviceRunning) { lanIpProvider() }
+
+            if (lanIp == null) {
+                Text(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    text = "Server is on, but no Wi-Fi IP address was found. Connect to Wi-Fi and " +
+                        "toggle the server off and back on."
+                )
+            } else {
+                val infoJson = remember(apiKey, lanIp, committedPort) {
+                    buildServerInfoJson(lanIp, committedPort, apiKey)
+                }
+                Text(
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    text = "Give this to whatever will send it images — paste it into your " +
+                        "agent's OCR config (e.g. an MCP server) or a script:",
+                    style = MaterialTheme.typography.labelMedium
+                )
+                SelectionContainer {
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = infoJson
+                    )
+                }
+            }
+        } else {
+            Text(
+                modifier = Modifier.padding(vertical = 8.dp),
+                text = "Turn the server on to see its connection info."
             )
         }
     }

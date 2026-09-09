@@ -24,7 +24,8 @@ class OcrService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIF_ID, notification())
+        val port = PortConfig.getPort(applicationContext)
+        startForeground(NOTIF_ID, notification(port))
 
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ocr-kit:server").apply {
@@ -33,10 +34,10 @@ class OcrService : Service() {
         }
 
         try {
-            server = OcrServer(applicationContext, PORT).also { it.start(0, true) }
-            Log.i(OcrServer.TAG, "listening on 0.0.0.0:$PORT")
+            server = OcrServer(applicationContext, port).also { it.start(0, true) }
+            Log.i(OcrServer.TAG, "listening on 0.0.0.0:$port")
         } catch (t: Throwable) {
-            Log.e(OcrServer.TAG, "failed to bind $PORT", t)
+            Log.e(OcrServer.TAG, "failed to bind $port", t)
             stopSelf()
         }
     }
@@ -51,21 +52,19 @@ class OcrService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun notification(): Notification {
+    private fun notification(port: Int): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, "OCR service", NotificationManager.IMPORTANCE_MIN)
         )
         return Notification.Builder(this, CHANNEL)
             .setContentTitle("OCR Kit")
-            .setContentText("Listening on :$PORT")
+            .setContentText("Listening on :$port")
             .setSmallIcon(android.R.drawable.ic_menu_search)
             .build()
     }
 
     companion object {
-        // Same port as the reference service, so callers only change the host.
-        const val PORT = 5210
         private const val CHANNEL = "ocr-kit"
         private const val NOTIF_ID = 1
     }

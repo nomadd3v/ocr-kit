@@ -35,34 +35,32 @@ device.
    (`adb install app/build/outputs/apk/debug/app-debug.apk`, or copy it to
    the phone and open it there — you'll need "install from unknown
    sources" allowed for the latter).
-3. Open the app once. On first launch it generates a random pairing key
+3. Open the app once. On first launch it generates a random server key
    and stores it on the device — you never have to type it in yourself.
 
-## Pairing
+## Turning it on
 
-Open the app on the phone. It shows:
-
-- A **QR code** — scan it with whatever tool is consuming the OCR service
-  (if it supports camera-based pairing).
-- The **same information as plain text** underneath the QR code, so you can
-  copy-paste it instead — useful when you're pasting it straight into an
-  MCP config or a script instead of scanning with a camera.
-
-Both forms encode the same JSON:
+Open the app and flip the **OCR server** toggle on. Once it's running, the
+app prints the connection info as plain, selectable JSON:
 
 ```json
-{"host":"<phone's LAN IP>","port":5210,"key":"<pairing key>"}
+{"host":"<phone's LAN IP>","port":5210,"key":"<server key>"}
 ```
 
+Copy that and hand it to whatever is going to send images — paste it into
+an MCP server's config, a script's env vars, or tell your AI agent to set
+up an OCR MCP server using it. There's nothing to scan; it's just text to
+copy once.
+
 - `host` — the phone's IP address on your local Wi-Fi network.
-- `port` — always `5210`.
+- `port` — `5210` by default, editable in the app (locked while the server
+  is running — turn it off to change it).
 - `key` — the random key that authenticates every request. Anyone who has
   this key can use the OCR server; anyone who doesn't gets rejected, even
   if they can reach the phone on the network.
 
-There's also an **ON/OFF toggle** in the app to start or stop the OCR
-server whenever you want — turn it off and the phone stops accepting
-requests entirely, even from someone who already has the key.
+Toggle it off and the phone stops accepting requests entirely, even from
+someone who already has the key.
 
 ## Using it
 
