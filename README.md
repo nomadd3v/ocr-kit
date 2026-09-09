@@ -117,10 +117,12 @@ curl http://<host>:5210/ocr \
 
 ## Status
 
-Fresh — the auth path has been adversarially reviewed and the app builds
-clean (`./gradlew :app:assembleDebug`), but it has not yet been flashed
-onto physical hardware and put through a real end-to-end pairing flow.
-Treat it as a working v1, not a battle-tested one. Issues and PRs welcome.
+Fresh — the auth path has been adversarially reviewed, the app builds
+clean (`./gradlew :app:assembleDebug`), and it's been verified end-to-end
+on a real Pixel: real tap on the toggle, real network request, a real
+photo recognized correctly. Verified on one device so far, not yet
+stress-tested by anyone but the author. Treat it as a working v1, not a
+battle-tested one. Issues and PRs welcome.
 
 ## What this does NOT do
 
