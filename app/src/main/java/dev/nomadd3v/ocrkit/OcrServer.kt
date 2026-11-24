@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
  * HTTP front for ML Kit text recognition.
  *
  * Speaks the EXACT contract the reference box/phone services already expose
- * (betterpostools/ocr-service) — external callers (an MCP client,
+ * (a private predecessor) — external callers (an MCP client,
  * `lib/ocrMenu.ts`-style consumers) read `text` / `mean_confidence` /
  * `results[]` off it by name, snake_case, not camel. A field renamed here
  * does not raise an error over there, it silently reads undefined and looks
